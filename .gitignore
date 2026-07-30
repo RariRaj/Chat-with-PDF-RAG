@@ -1,4 +1,24 @@
+# Virtual Environment
 venv/
-.env
+
+# Python
 __pycache__/
 *.pyc
+
+# Environment Variables
+.env
+
+# Streamlit
+.streamlit/
+
+# Uploaded files
+uploaded_files/*
+
+# FAISS index
+faiss_index/*
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store

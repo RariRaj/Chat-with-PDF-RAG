@@ -1,10 +1,14 @@
+from config import TOP_K, FETCH_K, LAMBDA_MULT
+
+
 def get_retriever(vector_store):
     """
     Create a retriever from the FAISS vector store.
     """
 
     retriever = vector_store.as_retriever(
-        search_type="similarity", search_kwargs={"k": 3}
+        search_type="mmr",
+        search_kwargs={"k": TOP_K, "fetch_k": FETCH_K, "lambda_mult": LAMBDA_MULT},
     )
 
     return retriever

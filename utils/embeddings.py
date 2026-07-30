@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+from config import EMBEDDING_MODEL, GOOGLE_API_KEY
 
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
@@ -13,7 +14,7 @@ def get_embeddings():
     """
 
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-001", google_api_key=os.getenv("GOOGLE_API_KEY")
+        model=EMBEDDING_MODEL, google_api_key=GOOGLE_API_KEY
     )
 
     return embeddings

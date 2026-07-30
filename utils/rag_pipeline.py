@@ -12,24 +12,38 @@ def ask_question(retriever, question):
     docs = retriever.invoke(question)
 
     # Combine retrieved chunks
-    context = "\n\n".join([doc.page_content for doc in docs])
+    context = ""
+
+    for i, doc in enumerate(docs, start=1):
+        context += f"""
+      Document {i}
+      Page: {doc.metadata.get('page', 'Unknown')}
+
+      {doc.page_content}
+
+      -----------------------------------
+      """
 
     # Prompt template
     prompt = ChatPromptTemplate.from_template("""
-You are an AI assistant that answers questions only from the provided context.
+    You are an Enterprise AI Document Assistant.
 
-Context:
-{context}
+    Use ONLY the information provided in the retrieved context.
 
-Question:
-{question}
+    Context:
+    {context}
 
-Instructions:
-- Answer only using the provided context.
-- If the answer is not available, say:
-  "I couldn't find that information in the uploaded document."
-- Keep your answer concise and professional.
-""")
+    Question:
+    {question}
+
+    Instructions:
+    - Answer only from the provided context.
+    - Do not make assumptions or invent information.
+    - If multiple items exist (projects, skills, certifications, experience), include ALL relevant items found in the retrieved context.
+    - Present the answer using bullet points whenever appropriate.
+    - If the answer cannot be found, reply exactly:
+    "I couldn't find that information in the uploaded document."
+    """)
 
     llm = get_llm()
 
@@ -37,4 +51,4 @@ Instructions:
 
     response = chain.invoke({"context": context, "question": question})
 
-    return response.content
+    return response.content, docs
