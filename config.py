@@ -6,7 +6,12 @@ load_dotenv()
 # ===============================
 # API Configuration
 # ===============================
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+try:
+    import streamlit as st
+
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+except Exception:
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # ===============================
 # Model Configuration
