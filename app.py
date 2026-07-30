@@ -1,5 +1,7 @@
+import os
 import streamlit as st
 
+from utils.file_hash import get_file_hash
 from utils.helpers import save_uploaded_file
 from utils.pdf_loader import load_pdf
 from utils.text_splitter import split_documents
@@ -14,6 +16,7 @@ from utils.rag_pipeline import ask_question
 # --------------------------------------------------
 # Streamlit Configuration
 # --------------------------------------------------
+
 st.set_page_config(
     page_title="Enterprise RAG Assistant",
     page_icon="🤖",
@@ -22,30 +25,23 @@ st.set_page_config(
 
 
 # --------------------------------------------------
-# Cache Retriever
-# --------------------------------------------------
-@st.cache_resource
-def get_cached_retriever():
-    vector_store = load_vector_store()
-    return get_retriever(vector_store)
-
-
-# --------------------------------------------------
 # Session State
 # --------------------------------------------------
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "processed" not in st.session_state:
-    st.session_state.processed = False
+if "retriever" not in st.session_state:
+    st.session_state.retriever = None
 
-if "current_file" not in st.session_state:
-    st.session_state.current_file = None
+if "document_hash" not in st.session_state:
+    st.session_state.document_hash = None
 
 
 # --------------------------------------------------
 # Header
 # --------------------------------------------------
+
 st.title("🤖 Enterprise RAG Assistant")
 
 st.caption(
@@ -56,58 +52,90 @@ st.caption(
 # --------------------------------------------------
 # Sidebar
 # --------------------------------------------------
+
 st.sidebar.title("🤖 Enterprise RAG Assistant")
 
 st.sidebar.markdown("---")
 
 st.sidebar.success("LLM: Gemini 2.5 Flash")
+
 st.sidebar.info("Embeddings: Gemini Embedding")
+
 st.sidebar.info("Vector Database: FAISS")
+
 st.sidebar.info("Framework: LangChain")
 
 st.sidebar.markdown("---")
 
 if st.sidebar.button("🗑 Clear Chat"):
+
     st.session_state.messages = []
+
     st.rerun()
 
 st.sidebar.markdown("---")
+
 st.sidebar.write("Created by **Rari Raj**")
 
 
 # --------------------------------------------------
 # Upload PDF
 # --------------------------------------------------
-uploaded_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
+
+uploaded_file = st.file_uploader(
+    "📄 Upload a PDF",
+    type=["pdf"],
+)
 
 if uploaded_file:
 
-    # Detect new uploaded file
-    if uploaded_file.name != st.session_state.current_file:
+    document_hash = get_file_hash(uploaded_file)
 
-        st.session_state.current_file = uploaded_file.name
-        st.session_state.processed = False
+    vector_folder = os.path.join(
+        "vector_store",
+        document_hash,
+    )
 
-    # Process only once
-    if not st.session_state.processed:
+    if st.session_state.document_hash != document_hash:
 
-        with st.spinner("📄 Processing PDF and creating vector database..."):
+        st.session_state.document_hash = document_hash
 
-            file_path = save_uploaded_file(uploaded_file)
+        # -----------------------------
+        # Load Existing Vector Store
+        # -----------------------------
 
-            documents = load_pdf(file_path)
+        if os.path.exists(vector_folder):
 
-            chunks = split_documents(documents)
+            with st.spinner("📂 Loading existing vector database..."):
 
-            vector_store = create_vector_store(chunks)
+                vector_store = load_vector_store(document_hash)
 
-            save_vector_store(vector_store)
+            st.success("✅ Existing vector database loaded.")
 
-        st.session_state.processed = True
+        # -----------------------------
+        # Create New Vector Store
+        # -----------------------------
 
-        st.success("✅ Document Ready!")
+        else:
 
-        st.info(f"""
+            with st.spinner("📄 Creating vector database..."):
+
+                file_path = save_uploaded_file(uploaded_file)
+
+                documents = load_pdf(file_path)
+
+                chunks = split_documents(documents)
+
+                vector_store = create_vector_store(chunks)
+
+                save_vector_store(
+                    vector_store,
+                    document_hash,
+                )
+
+            st.success("✅ Document indexed successfully!")
+
+            st.info(f"""
 📄 **Document:** {uploaded_file.name}
 
 📃 **Pages:** {len(documents)}
@@ -117,34 +145,51 @@ if uploaded_file:
 🟢 **Status:** Ready to Chat
 """)
 
+        st.session_state.retriever = get_retriever(vector_store)
+
 
 # --------------------------------------------------
 # Display Chat History
 # --------------------------------------------------
+
 for message in st.session_state.messages:
 
     with st.chat_message(message["role"]):
+
         st.markdown(message["content"])
 
 
 # --------------------------------------------------
-# Chat Input
+# Chat
 # --------------------------------------------------
+
 question = st.chat_input("Ask a question about your document...")
 
 if question:
 
-    # Save user message
-    st.session_state.messages.append({"role": "user", "content": question})
+    if st.session_state.retriever is None:
+
+        st.warning("Please upload a PDF first.")
+
+        st.stop()
+
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": question,
+        }
+    )
 
     with st.chat_message("user"):
-        st.markdown(question)
 
-    retriever = get_cached_retriever()
+        st.markdown(question)
 
     with st.spinner("🤖 Thinking..."):
 
-        answer, docs = ask_question(retriever, question)
+        answer, docs = ask_question(
+            st.session_state.retriever,
+            question,
+        )
 
     with st.chat_message("assistant"):
 
@@ -156,9 +201,15 @@ if question:
 
             for doc in docs:
 
-                source = doc.metadata.get("source", "Unknown")
+                source = doc.metadata.get(
+                    "source",
+                    "Unknown",
+                )
 
-                page = doc.metadata.get("page", 0)
+                page = doc.metadata.get(
+                    "page",
+                    0,
+                )
 
                 key = (source, page)
 
@@ -175,4 +226,9 @@ if question:
 
                 st.caption(doc.page_content[:250] + "...")
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": answer,
+        }
+    )

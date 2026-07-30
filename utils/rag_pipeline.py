@@ -16,39 +16,52 @@ def ask_question(retriever, question):
 
     for i, doc in enumerate(docs, start=1):
         context += f"""
-      Document {i}
-      Page: {doc.metadata.get('page', 'Unknown')}
+Document {i}
+Page: {doc.metadata.get("page", "Unknown")}
 
-      {doc.page_content}
+{doc.page_content}
 
-      -----------------------------------
-      """
+-----------------------------------
+"""
 
-    # Prompt template
     prompt = ChatPromptTemplate.from_template("""
-    You are an Enterprise AI Document Assistant.
+You are an Enterprise AI Document Assistant.
 
-    Use ONLY the information provided in the retrieved context.
+Use ONLY the information provided in the retrieved context.
 
-    Context:
-    {context}
+Context:
+{context}
 
-    Question:
-    {question}
+Question:
+{question}
 
-    Instructions:
-    - Answer only from the provided context.
-    - Do not make assumptions or invent information.
-    - If multiple items exist (projects, skills, certifications, experience), include ALL relevant items found in the retrieved context.
-    - Present the answer using bullet points whenever appropriate.
-    - If the answer cannot be found, reply exactly:
-    "I couldn't find that information in the uploaded document."
-    """)
+Instructions:
+- Answer only from the provided context.
+- Do not make assumptions or invent information.
+- If multiple items exist (projects, skills, certifications, experience), include ALL relevant items found in the retrieved context.
+- Present the answer using bullet points whenever appropriate.
+- If the answer cannot be found, reply exactly:
+"I couldn't find that information in the uploaded document."
+""")
 
     llm = get_llm()
 
     chain = prompt | llm
 
-    response = chain.invoke({"context": context, "question": question})
+    try:
 
-    return response.content, docs
+        response = chain.invoke(
+            {
+                "context": context,
+                "question": question,
+            }
+        )
+
+        return response.content, docs
+
+    except Exception:
+
+        return (
+            "⚠️ Gemini API quota exceeded. Please try again later or use another API key.",
+            docs,
+        )
